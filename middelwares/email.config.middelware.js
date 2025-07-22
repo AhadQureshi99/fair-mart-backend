@@ -1,17 +1,25 @@
-//  import nodemailer from 'nodemailer'
- 
+import nodemailer from "nodemailer";
 
+export const transporter = nodemailer.createTransport({
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false,
+  auth: {
+    user: process.env.USER_AUTH_EMAIL,
+    pass: process.env.USER_AUTH_PASS,
+  },
+  pool: true,
+  maxConnections: 5,
+  tls: {
+    rejectUnauthorized: false, // For VPS environments
+  },
+});
 
-
-//  export const transporter = nodemailer.createTransport({
-//     host: "smtp.gmail.com",
-//     port: 587,
-//     secure: false, // true for port 465, false for other ports
-//     auth: {
-//       user: process.env.USER_AUTH_EMAIL,
-//       pass: process.env.USER_AUTH_PASS,
-//     },
-//     pool:true,
-//     maxConnections:5
-//   });
-
+// Verify transporter on startup
+transporter.verify((error, success) => {
+  if (error) {
+    console.error("SMTP connection error:", error);
+  } else {
+    console.log("SMTP server is ready to send emails");
+  }
+});
