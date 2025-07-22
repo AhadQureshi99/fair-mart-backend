@@ -29,9 +29,6 @@ const generateaccestoken = async (userid) => {
 };
 
 let registeruser = asynchandler(async (req, res) => {
-  console.log("Register route hit");
-  console.log("req.file:", req.file);
-  console.log("req.body:", req.body);
   const {
     email,
     password,
@@ -42,72 +39,49 @@ let registeruser = asynchandler(async (req, res) => {
     bussinesaddress,
     role,
   } = req.body;
+
   const profile = req.file;
 
-  // Validate input fields
   if (!email || !password || !fullname || !number) {
-    // Cleanup uploaded file if validation fails
     if (profile) {
-      const imagePath = path.join(process.cwd(), "public", profile.filename);
       try {
+        const imagePath = path.join(process.cwd(), "public", profile.filename);
         if (fs.existsSync(imagePath)) {
           fs.unlinkSync(imagePath);
-          console.log(
-            "Profile image deleted after validation failure:",
-            imagePath
-          );
+          console.log("Deleted profile image due to missing required fields.");
         }
-      } catch (deleteError) {
-        console.error(
-          "Error deleting profile image after validation failure:",
-          deleteError
-        );
+      } catch (err) {
+        console.error("Image delete error:", err.message);
       }
     }
     throw new apierror(400, "All fields are required");
   }
 
-  // Check for existing email
   const existedEmail = await User.findOne({ email });
   if (existedEmail) {
-    // Cleanup uploaded file if email exists
     if (profile) {
-      const imagePath = path.join(process.cwd(), "public", profile.filename);
       try {
+        const imagePath = path.join(process.cwd(), "public", profile.filename);
         if (fs.existsSync(imagePath)) {
           fs.unlinkSync(imagePath);
-          console.log(
-            "Profile image deleted after email exists check:",
-            imagePath
-          );
         }
-      } catch (deleteError) {
-        console.error(
-          "Error deleting profile image after email exists check:",
-          deleteError
-        );
+      } catch (err) {
+        console.error("Error deleting profile image:", err.message);
       }
     }
-    if (!existedEmail.verified) {
-      return res
-        .status(401)
-        .json({ message: "Email already exists and user is not verified" });
-    } else {
-      return res
-        .status(401)
-        .json({ message: "Email already exists, please proceed to login" });
-    }
+
+    return res.status(401).json({
+      message: existedEmail.verified
+        ? "Email already exists, please proceed to login"
+        : "Email already exists and user is not verified",
+    });
   }
 
-  const verificationCode = Math.floor(
-    100000 + Math.random() * 900000
-  ).toString();
+  const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
 
-  let user;
   try {
-    // Create the user with verification code but not verified
-    user = await User.create({
-      profile: profile ? profile.filename : "",
+    const user = await User.create({
+      profile: profile?.filename || "",
       email,
       password,
       fullname,
@@ -132,25 +106,19 @@ let registeruser = asynchandler(async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error creating user:", error);
-    // Cleanup uploaded file if user creation fails
+    console.error("User creation error:", error);
+
     if (profile) {
-      const imagePath = path.join(process.cwd(), "public", profile.filename);
       try {
+        const imagePath = path.join(process.cwd(), "public", profile.filename);
         if (fs.existsSync(imagePath)) {
           fs.unlinkSync(imagePath);
-          console.log(
-            "Profile image deleted after failed user creation:",
-            imagePath
-          );
         }
-      } catch (deleteError) {
-        console.error(
-          "Error deleting profile image after failed user creation:",
-          deleteError
-        );
+      } catch (err) {
+        console.error("Image delete on fail:", err.message);
       }
     }
+
     throw new apierror(500, "Error creating user", error.message);
   }
 });
