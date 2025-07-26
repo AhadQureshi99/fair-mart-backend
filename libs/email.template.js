@@ -1,173 +1,187 @@
 export const Verification_Email_Template = `
-  <!DOCTYPE html>
-  <html lang="en">
-  <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Verify Your Email</title>
-      <style>
-          body {
-              font-family: Arial, sans-serif;
-              margin: 0;
-              padding: 0;
-              background-color: #f4f4f4;
-          }
-          .container {
-              max-width: 600px;
-              margin: 30px auto;
-              background: #ffffff;
-              border-radius: 8px;
-              box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-              overflow: hidden;
-              border: 1px solid #ddd;
-          }
-          .header {
-              background-color: #4CAF50;
-              color: white;
-              padding: 20px;
-              text-align: center;
-              font-size: 26px;
-              font-weight: bold;
-          }
-          .content {
-              padding: 25px;
-              color: #333;
-              line-height: 1.8;
-          }
-          .verification-code {
-              display: block;
-              margin: 20px 0;
-              font-size: 22px;
-              color: #4CAF50;
-              background: #e8f5e9;
-              border: 1px dashed #4CAF50;
-              padding: 10px;
-              text-align: center;
-              border-radius: 5px;
-              font-weight: bold;
-              letter-spacing: 2px;
-          }
-          .footer {
-              background-color: #f4f4f4;
-              padding: 15px;
-              text-align: center;
-              color: #777;
-              font-size: 12px;
-              border-top: 1px solid #ddd;
-          }
-          p {
-              margin: 0 0 15px;
-          }
-      </style>
-  </head>
-  <body>
-      <div class="container">
-          <div class="header">Verify Your Email</div>
-          <div class="content">
-              <p>Hello,</p>
-              <p>Thank you for signing up! Please confirm your email address by entering the code below:</p>
-              <span class="verification-code">{verificationCode}</span>
-              <p>If you did not create an account, no further action is required. If you have any questions, feel free to contact our support team.</p>
-          </div>
-          <div class="footer">
-              <p>&copy; ${new Date().getFullYear()} Your Company. All rights reserved.</p>
-          </div>
-      </div>
-  </body>
-  </html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Your 24/7 FairMart Account</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: 30px auto;
+            background: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            border: 1px solid #e0e0e0;
+        }
+        .header {
+            background: linear-gradient(135deg, #ff6f00 0%, #ff8f00 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .content {
+            padding: 30px;
+            line-height: 1.6;
+        }
+        .verification-code {
+            display: block;
+            margin: 20px 0;
+            font-size: 24px;
+            color: #ff6f00;
+            background: #fff3e0;
+            border: 2px solid #ff6f00;
+            padding: 15px;
+            text-align: center;
+            border-radius: 8px;
+            font-weight: bold;
+            letter-spacing: 3px;
+        }
+        .footer {
+            background-color: #fafafa;
+            padding: 15px;
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+            border-top: 1px solid #e0e0e0;
+        }
+        p {
+            margin: 0 0 15px;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #ff6f00;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: 600;
+            margin: 15px 0;
+        }
+        .button:hover {
+            background-color: #e55f00;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">Welcome to 24/7 FairMart</div>
+        <div class="content">
+            <p>Hello,</p>
+            <p>Thank you for joining 24/7 FairMart! To complete your registration, please verify your email address using the code below:</p>
+            <span class="verification-code">{verificationCode}</span>
+            <p>This code is valid for the next 10 minutes. If you didn’t request this, please ignore this email or contact our support team at support@247fairmart.com.</p>
+            <a href="https://247fairmart.com/verify" class="button">Verify Now</a>
+        </div>
+        <div class="footer">
+            <p>&copy; ${new Date().getFullYear()} 24/7 FairMart. All rights reserved.</p>
+            <p>24/7 FairMart | 123 Shopping Street, Commerce City | support@247fairmart.com</p>
+        </div>
+    </div>
+</body>
+</html>
 `;
 
-
-
-
-export const Welcome_Email_Template = `
-  <!DOCTYPE html>
-  <html lang="en">
-  <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Welcome to Our Community</title>
-      <style>
-          body {
-              font-family: Arial, sans-serif;
-              margin: 0;
-              padding: 0;
-              background-color: #f4f4f4;
-              color: #333;
-          }
-          .container {
-              max-width: 600px;
-              margin: 30px auto;
-              background: #ffffff;
-              border-radius: 8px;
-              box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-              overflow: hidden;
-              border: 1px solid #ddd;
-          }
-          .header {
-              background-color: #007BFF;
-              color: white;
-              padding: 20px;
-              text-align: center;
-              font-size: 26px;
-              font-weight: bold;
-          }
-          .content {
-              padding: 25px;
-              line-height: 1.8;
-          }
-          .welcome-message {
-              font-size: 18px;
-              margin: 20px 0;
-          }
-          .button {
-              display: inline-block;
-              padding: 12px 25px;
-              margin: 20px 0;
-              background-color: #007BFF;
-              color: white;
-              text-decoration: none;
-              border-radius: 5px;
-              text-align: center;
-              font-size: 16px;
-              font-weight: bold;
-              transition: background-color 0.3s;
-          }
-          .button:hover {
-              background-color: #0056b3;
-          }
-          .footer {
-              background-color: #f4f4f4;
-              padding: 15px;
-              text-align: center;
-              color: #777;
-              font-size: 12px;
-              border-top: 1px solid #ddd;
-          }
-          p {
-              margin: 0 0 15px;
-          }
-      </style>
-  </head>
-  <body>
-      <div class="container">
-          <div class="header">Welcome to Our Community!</div>
-          <div class="content">
-              <p class="welcome-message">Hello {name},</p>
-              <p>We’re thrilled to have you join us! Your registration was successful, and we’re committed to providing you with the best experience possible.</p>
-              <p>Here’s how you can get started:</p>
-              <ul>
-                  <li>Explore our features and customize your experience.</li>
-                  <li>Stay informed by checking out our blog for the latest updates and tips.</li>
-                  <li>Reach out to our support team if you have any questions or need assistance.</li>
-              </ul>
-              <a href="#" class="button">Get Started</a>
-              <p>If you need any help, don’t hesitate to contact us. We’re here to support you every step of the way.</p>
-          </div>
-          <div class="footer">
-              <p>&copy; ${new Date().getFullYear()} Your Company. All rights reserved.</p>
-          </div>
-      </div>
-  </body>
-  </html>
+export const Forgot_Password_Email_Template = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reset Your 24/7 FairMart Password</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: 30px auto;
+            background: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            border: 1px solid #e0e0e0;
+        }
+        .header {
+            background: linear-gradient(135deg, #ff6f00 0%, #ff8f00 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .content {
+            padding: 30px;
+            line-height: 1.6;
+        }
+        .reset-code {
+            display: block;
+            margin: 20px 0;
+            font-size: 24px;
+            color: #ff6f00;
+            background: #fff3e0;
+            border: 2px solid #ff6f00;
+            padding: 15px;
+            text-align: center;
+            border-radius: 8px;
+            font-weight: bold;
+            letter-spacing: 3px;
+        }
+        .footer {
+            background-color: #fafafa;
+            padding: 15px;
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+            border-top: 1px solid #e0e0e0;
+        }
+        p {
+            margin: 0 0 15px;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #ff6f00;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: 600;
+            margin: 15px 0;
+        }
+        .button:hover {
+            background-color: #e55f00;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">Reset Your Password</div>
+        <div class="content">
+            <p>Hello,</p>
+            <p>We received a request to reset your 24/7 FairMart account password. Please use the code below to reset your password:</p>
+            <span class="reset-code">{resetToken}</span>
+            <p>This code is valid for the next 1 hour. If you didn’t request a password reset, please ignore this email or contact our support team at support@247fairmart.com.</p>
+            <a href="https://247fairmart.com/reset-password" class="button">Reset Password</a>
+        </div>
+        <div class="footer">
+            <p>&copy; ${new Date().getFullYear()} 24/7 FairMart. All rights reserved.</p>
+            <p>24/7 FairMart | 123 Shopping Street, Commerce City | support@247fairmart.com</p>
+        </div>
+    </div>
+</body>
+</html>
 `;
