@@ -2,12 +2,7 @@ import { User } from "../models/user.model.js";
 import { ShoppingItem } from "../models/shoppingitem.model.js";
 import { Order } from "../models/orders.model.js";
 import { asynchandler } from "../utils/asynchandler.js";
-import { apiresponse } from "../utils/responsehandler.js";
 import { apierror } from "../utils/apierror.js";
-import {
-  sendemailverification,
-  sendForgotPasswordEmail,
-} from "../middelwares/Email.js";
 import path from "path";
 import fs from "fs";
 
@@ -63,10 +58,6 @@ const registeruser = asynchandler(async (req, res) => {
     );
   }
 
-  const verificationCode = Math.floor(
-    100000 + Math.random() * 900000
-  ).toString();
-
   let user;
   try {
     user = await User.create({
@@ -78,20 +69,14 @@ const registeruser = asynchandler(async (req, res) => {
       type,
       bussinesname,
       bussinesaddress,
-      verificationcode: verificationCode,
-      verified: false,
+      verified: true, // Directly verified since OTP removed
     });
 
-    await sendemailverification(user.email, user.verificationcode);
-    const created_user = await User.findById(user._id).select(
-      "-password -verificationcode"
-    );
-    return res
-      .status(200)
-      .json({
-        message: "Please verify your email with the OTP sent",
-        user: created_user,
-      });
+    const created_user = await User.findById(user._id).select("-password");
+    return res.status(200).json({
+      message: "User registered successfully",
+      user: created_user,
+    });
   } catch (error) {
     if (profile) {
       const imagePath = path.join(process.cwd(), "public", profile.filename);
@@ -99,118 +84,6 @@ const registeruser = asynchandler(async (req, res) => {
     }
     throw new apierror(500, "Error creating user: " + error.message);
   }
-});
-
-const verifyOTP = asynchandler(async (req, res) => {
-  const { email, otp } = req.body;
-
-  if (!email || !otp) {
-    throw new apierror(400, "Email and OTP are required");
-  }
-
-  const user = await User.findOne({ email });
-  if (!user) {
-    throw new apierror(404, "User not found");
-  }
-
-  if (user.verified) {
-    throw new apierror(400, "User already verified");
-  }
-
-  if (user.verificationcode !== otp) {
-    throw new apierror(401, "Invalid OTP");
-  }
-
-  user.verified = true;
-  user.verificationcode = undefined;
-  await user.save();
-
-  const { accesstoken } = await generateaccesstoken(user._id);
-  const options = {
-    httpOnly: true,
-    secure: true,
-    sameSite: "None",
-    maxAge: 30 * 24 * 60 * 60 * 1000,
-  };
-
-  const verifiedUser = await User.findById(user._id).select("-password");
-  return res
-    .status(200)
-    .cookie("accesstoken", accesstoken, options)
-    .json({
-      success: true,
-      message: "Email verified successfully",
-      data: { user: verifiedUser, token: accesstoken },
-    });
-});
-
-const forgotPassword = asynchandler(async (req, res) => {
-  const { email } = req.body;
-
-  if (!email) {
-    throw new apierror(400, "Email is required");
-  }
-
-  const user = await User.findOne({ email });
-  if (!user) {
-    throw new apierror(404, "User not found");
-  }
-
-  const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
-  user.forgetpasswordotp = resetToken;
-  user.resetPasswordExpires = Date.now() + 3600000; // 1 hour
-  await user.save();
-
-  await sendForgotPasswordEmail(user.email, resetToken);
-  return res
-    .status(200)
-    .json({ message: "Password reset OTP sent to your email" });
-});
-
-const resetPassword = asynchandler(async (req, res) => {
-  const { email, otp, newPassword } = req.body;
-
-  if (!email || !otp || !newPassword) {
-    throw new apierror(400, "Email, OTP, and new password are required");
-  }
-
-  const user = await User.findOne({
-    email,
-    forgetpasswordotp: otp,
-    resetPasswordExpires: { $gt: Date.now() },
-  });
-
-  if (!user) {
-    throw new apierror(401, "Invalid or expired OTP");
-  }
-
-  user.password = newPassword;
-  user.forgetpasswordotp = undefined;
-  user.resetPasswordExpires = undefined;
-  await user.save();
-
-  return res.status(200).json({ message: "Password reset successfully" });
-});
-
-const resendotp = asynchandler(async (req, res) => {
-  const { email } = req.body;
-
-  const user = await User.findOne({ email });
-  if (!user) {
-    throw new apierror(404, "User not found");
-  }
-  if (user.verified) {
-    throw new apierror(400, "User already verified");
-  }
-
-  const verificationCode = Math.floor(
-    100000 + Math.random() * 900000
-  ).toString();
-  user.verificationcode = verificationCode;
-  await user.save();
-
-  await sendemailverification(user.email, user.verificationcode);
-  return res.json({ message: "New OTP sent to your email" });
 });
 
 const updateprofile = asynchandler(async (req, res) => {
@@ -266,13 +139,11 @@ const updateprofile = asynchandler(async (req, res) => {
   try {
     await user.save();
     const updatedUser = await User.findById(userId).select("-password");
-    return res
-      .status(200)
-      .json({
-        success: true,
-        message: "Profile updated successfully",
-        user: updatedUser,
-      });
+    return res.status(200).json({
+      success: true,
+      message: "Profile updated successfully",
+      user: updatedUser,
+    });
   } catch (error) {
     if (profile) {
       const imagePath = path.join(process.cwd(), "public", profile.filename);
@@ -317,19 +188,6 @@ export const logout = asynchandler(async (req, res) => {
   };
   res.clearCookie("accesstoken", options);
   res.json({ message: "Logged out successfully" });
-});
-
-export const verifyuser = asynchandler(async (req, res) => {
-  const { id } = req.params;
-  const user = await User.findById(id);
-  if (user) {
-    user.verified = true;
-    user.verificationcode = undefined;
-    await user.save();
-    res.json({ message: "User verified successfully" });
-  } else {
-    throw new apierror(404, "User not found");
-  }
 });
 
 export const addloyaltypoints = asynchandler(async (req, res) => {
@@ -421,10 +279,6 @@ const login = asynchandler(async (req, res) => {
     throw new apierror(404, "User does not exist");
   }
 
-  if (!user.verified) {
-    throw new apierror(401, "Please verify your email before logging in");
-  }
-
   const isPasswordValid = await user.isPasswordCorrect(password);
   if (!isPasswordValid) {
     throw new apierror(401, "Password is not valid");
@@ -452,12 +306,8 @@ const login = asynchandler(async (req, res) => {
 export {
   registeruser,
   login,
-  resendotp,
   delunverifiedusers,
   updateprofile,
   getallusers,
   deleteuser,
-  verifyOTP,
-  forgotPassword,
-  resetPassword,
 };

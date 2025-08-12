@@ -3,22 +3,16 @@ import {
   deleteuser,
   addloyaltypoints,
   redeemloyaltypoints,
-  delunverifiedusers,
   getallusers,
   login,
   logout,
   registeruser,
-  resendotp,
   updateprofile,
-  verifyuser,
   addtofavourites,
   removefromfavourites,
   getfavourites,
   addtoorderhistory,
   getorderhistory,
-  verifyOTP,
-  forgotPassword,
-  resetPassword,
 } from "../controllers/user.controller.js";
 import { verifyjwt } from "../middelwares/auth.middleware.js";
 import { newupload } from "../middelwares/multer.middelware2.js";
@@ -26,17 +20,11 @@ import { newupload } from "../middelwares/multer.middelware2.js";
 const router = Router();
 
 router.route("/signup").post(newupload.single("profile"), registeruser);
-router.route("/verify-otp").post(verifyOTP);
 router.route("/login").post(login);
 router.route("/logout").post(logout);
-router.route("/forgot-password").post(forgotPassword);
-router.route("/reset-password").post(resetPassword);
 router.route("/me").get(verifyjwt, (req, res) => {
   res.json({ user: req.user });
 });
-router.route("/verified/:id").post(verifyuser);
-router.route("/resendotp").post(resendotp);
-router.route("/delunverifiedusers").delete(delunverifiedusers);
 router
   .route("/updateprofile")
   .post(verifyjwt, newupload.single("profile"), updateprofile);

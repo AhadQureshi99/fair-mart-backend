@@ -30,19 +30,6 @@ const userSchema = new Schema(
       type: Number,
       default: 0,
     },
-    verified: {
-      type: Boolean,
-      default: false,
-    },
-    verificationcode: {
-      type: String,
-    },
-    forgetpasswordotp: {
-      type: String,
-    },
-    resetPasswordExpires: {
-      type: Date,
-    },
     role: {
       type: String,
       enum: ["user", "admin", "superadmin"],
