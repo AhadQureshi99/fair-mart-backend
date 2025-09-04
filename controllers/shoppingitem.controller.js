@@ -9,6 +9,8 @@ import { User } from "../models/user.model.js";
 import { Category } from "../models/Category.model.js";
 
 const updateExisting = true;
+const BATCH_SIZE = 100; // Process items in batches
+
 export const addshoppingitems = asynchandler(async (req, res) => {
   const results = [];
   const file = req.file;
@@ -19,40 +21,32 @@ export const addshoppingitems = asynchandler(async (req, res) => {
     .on("data", (data) => results.push(data))
     .on("end", async () => {
       try {
-        for (const item of results) {
-          // Normalize category strings
-          const normalizedMainCategory = item.Domain_Name.trim().toLowerCase();
-          const normalizedSubCategory = item.Department_Name.trim().toLowerCase();
-          const normalizedItemCategory = item.ArticleGroup_Name.trim().toLowerCase();
-
-          // Find existing shopping item by custom id
-          let shoppingItemDoc = await ShoppingItem.findOne({ id: item.Article_No });
-          if (shoppingItemDoc) {
-            // Update the item if flag is set
-            if (updateExisting) {
-              shoppingItemDoc = await ShoppingItem.findOneAndUpdate(
-                { id: item.Article_No },
-                {
-                  main_category: normalizedMainCategory,
-                  sub_category: normalizedSubCategory,
-                  item_category: normalizedItemCategory,
-                  discountprice: item.Discount_Price,
-                  orignalprice: item.GrossSale_Price,
-                  itemfullname: item.Article_Name,
-                  brand: item.Brand,
-                  fulldesciption: item.Full_Desciption,
-                  descriptionpoints: item.Description_Points,
-                  description: item.Description,
-                  wholesale_discountprice: item.WholeSaleDiscounted_Price,
-                  wholesale_orignalprice: item.WholeSale_Price,
-                  loyaltypoints: item.loyaltypoints_size,
-                },
-                { new: true }
-              );
-            }
-          } else {
-            // Create new shopping item if not found
-            shoppingItemDoc = await ShoppingItem.create({
+        // Process items in batches for better performance
+        const totalItems = results.length;
+        const processedItems = [];
+        const categoryUpdates = new Map(); // Cache category updates
+        
+        console.log(`Processing ${totalItems} items in batches of ${BATCH_SIZE}`);
+        
+        for (let i = 0; i < totalItems; i += BATCH_SIZE) {
+          const batch = results.slice(i, i + BATCH_SIZE);
+          console.log(`Processing batch ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(totalItems/BATCH_SIZE)}`);
+          
+          // Prepare batch operations
+          const bulkOps = [];
+          const itemIds = batch.map(item => item.Article_No);
+          
+          // Get existing items in one query
+          const existingItems = await ShoppingItem.find({ id: { $in: itemIds } });
+          const existingItemsMap = new Map(existingItems.map(item => [item.id, item]));
+          
+          // Process each item in the batch
+          for (const item of batch) {
+            const normalizedMainCategory = item.Domain_Name.trim().toLowerCase();
+            const normalizedSubCategory = item.Department_Name.trim().toLowerCase();
+            const normalizedItemCategory = item.ArticleGroup_Name.trim().toLowerCase();
+            
+            const itemData = {
               id: item.Article_No,
               main_category: normalizedMainCategory,
               sub_category: normalizedSubCategory,
@@ -67,87 +61,187 @@ export const addshoppingitems = asynchandler(async (req, res) => {
               wholesale_discountprice: item.WholeSaleDiscounted_Price,
               wholesale_orignalprice: item.WholeSale_Price,
               loyaltypoints: item.loyaltypoints_size,
-            });
-          }
-
-          // Process the Category document
-          let main_cat = await Category.findOne({ main_category: normalizedMainCategory });
-          if (!main_cat) {
-            // If main category doesn't exist, create it with sub and item category
-            main_cat = await Category.create({
-              main_category: normalizedMainCategory,
-              sub_categories: [
-                {
-                  sub_category: normalizedSubCategory,
-                  item_categories: [
-                    {
-                      item_category: normalizedItemCategory,
-                      items: [shoppingItemDoc._id]
-                    }
-                  ]
-                }
-              ]
-            });
-          } else {
-            // Find the sub-category entry
-            let subCatIndex = main_cat.sub_categories.findIndex(
-              (sub) => sub.sub_category === normalizedSubCategory
-            );
-            if (subCatIndex === -1) {
-              // Create new sub-category with item category if not found
-              main_cat.sub_categories.push({
-                sub_category: normalizedSubCategory,
-                item_categories: [
-                  {
-                    item_category: normalizedItemCategory,
-                    items: [shoppingItemDoc._id]
+            };
+            
+            if (existingItemsMap.has(item.Article_No)) {
+              // Update existing item
+              if (updateExisting) {
+                bulkOps.push({
+                  updateOne: {
+                    filter: { id: item.Article_No },
+                    update: { $set: itemData },
+                    upsert: false
                   }
-                ]
-              });
-            } else {
-              // Get the existing sub-category
-              const subCat = main_cat.sub_categories[subCatIndex];
-              // Find the item category within the sub-category
-              let itemCatIndex = subCat.item_categories.findIndex(
-                (ic) => ic.item_category === normalizedItemCategory
-              );
-              if (itemCatIndex === -1) {
-                // If item category doesn't exist, add a new one
-                subCat.item_categories.push({
-                  item_category: normalizedItemCategory,
-                  items: [shoppingItemDoc._id]
                 });
-              } else {
-                // Otherwise, add the shopping item to the existing item category if not already present
-                const itemCat = subCat.item_categories[itemCatIndex];
-                if (!itemCat.items.some(
-                  (id) => id.toString() === shoppingItemDoc._id.toString()
-                )) {
-                  itemCat.items.push(shoppingItemDoc._id);
-                }
               }
-              // Update the sub-category entry
-              main_cat.sub_categories[subCatIndex] = subCat;
+            } else {
+              // Insert new item
+              bulkOps.push({
+                insertOne: {
+                  document: itemData
+                }
+              });
             }
-            await main_cat.save();
+            
+            // Cache category structure for later batch update
+            const categoryKey = `${normalizedMainCategory}|${normalizedSubCategory}|${normalizedItemCategory}`;
+            if (!categoryUpdates.has(categoryKey)) {
+              categoryUpdates.set(categoryKey, {
+                main_category: normalizedMainCategory,
+                sub_category: normalizedSubCategory,
+                item_category: normalizedItemCategory,
+                itemIds: []
+              });
+            }
+            categoryUpdates.get(categoryKey).itemIds.push(item.Article_No);
+          }
+          
+          // Execute bulk operations for shopping items
+          if (bulkOps.length > 0) {
+            await ShoppingItem.bulkWrite(bulkOps, { ordered: false });
           }
         }
-
+        
+        console.log('Updating category structure...');
+        
+        // Get all affected shopping items with their ObjectIds
+        const allItemIds = Array.from(categoryUpdates.values())
+          .flatMap(cat => cat.itemIds);
+        const shoppingItems = await ShoppingItem.find({ id: { $in: allItemIds } });
+        const itemIdToObjectId = new Map(shoppingItems.map(item => [item.id, item._id]));
+        
+        // Batch update categories
+        const categoryBulkOps = [];
+        
+        // Get all existing categories first
+        const existingCategories = await Category.find({});
+        const categoryMap = new Map(existingCategories.map(cat => [cat.main_category, cat]));
+        
+        for (const [categoryKey, categoryData] of categoryUpdates) {
+          const { main_category, sub_category, item_category, itemIds } = categoryData;
+          const objectIds = itemIds.map(id => itemIdToObjectId.get(id)).filter(Boolean);
+          
+          if (objectIds.length === 0) continue;
+          
+          let existingCategory = categoryMap.get(main_category);
+          
+          if (!existingCategory) {
+            // Create new category
+            categoryBulkOps.push({
+              insertOne: {
+                document: {
+                  main_category,
+                  sub_categories: [{
+                    sub_category,
+                    item_categories: [{
+                      item_category,
+                      items: objectIds
+                    }]
+                  }]
+                }
+              }
+            });
+          } else {
+            // Update existing category using aggregation pipeline
+            categoryBulkOps.push({
+              updateOne: {
+                filter: { main_category },
+                update: [
+                  {
+                    $set: {
+                      sub_categories: {
+                        $cond: {
+                          if: {
+                            $in: [sub_category, "$sub_categories.sub_category"]
+                          },
+                          then: {
+                            $map: {
+                              input: "$sub_categories",
+                              as: "subCat",
+                              in: {
+                                $cond: {
+                                  if: { $eq: ["$$subCat.sub_category", sub_category] },
+                                  then: {
+                                    sub_category: "$$subCat.sub_category",
+                                    item_categories: {
+                                      $cond: {
+                                        if: {
+                                          $in: [item_category, "$$subCat.item_categories.item_category"]
+                                        },
+                                        then: {
+                                          $map: {
+                                            input: "$$subCat.item_categories",
+                                            as: "itemCat",
+                                            in: {
+                                              $cond: {
+                                                if: { $eq: ["$$itemCat.item_category", item_category] },
+                                                then: {
+                                                  item_category: "$$itemCat.item_category",
+                                                  items: {
+                                                    $setUnion: ["$$itemCat.items", objectIds]
+                                                  }
+                                                },
+                                                else: "$$itemCat"
+                                              }
+                                            }
+                                          }
+                                        },
+                                        else: {
+                                          $concatArrays: [
+                                            "$$subCat.item_categories",
+                                            [{ item_category, items: objectIds }]
+                                          ]
+                                        }
+                                      }
+                                    }
+                                  },
+                                  else: "$$subCat"
+                                }
+                              }
+                            }
+                          },
+                          else: {
+                            $concatArrays: [
+                              "$sub_categories",
+                              [{
+                                sub_category,
+                                item_categories: [{ item_category, items: objectIds }]
+                              }]
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                ],
+                upsert: false
+              }
+            });
+          }
+        }
+        
+        // Execute category bulk operations
+        if (categoryBulkOps.length > 0) {
+          await Category.bulkWrite(categoryBulkOps, { ordered: false });
+        }
+        
+        console.log('Processing completed successfully');
+        
         if (results.length > 0) {
           fs.unlinkSync(filePath);
           // Populate shopping item details in subcategories/item_categories
           const populatedCategories = await Category.find()
             .populate("sub_categories.item_categories.items");
-          return res.json(new apiresponse(200, "Items added successfully", populatedCategories));
+          return res.json(new apiresponse(200, `${results.length} items processed successfully`, populatedCategories));
         }
       } catch (error) {
-        console.error(error);
-        res.status(500).send("Error processing shopping items");
+        console.error('Error processing shopping items:', error);
+        res.status(500).json(new apierror(500, "Error processing shopping items", [error.message]));
       }
     })
     .on("error", (err) => {
-      console.error(err);
-      res.status(500).send("Error reading the CSV file");
+      console.error('Error reading CSV file:', err);
+      res.status(500).json(new apierror(500, "Error reading the CSV file", [err.message]));
     });
 });
 
