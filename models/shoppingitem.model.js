@@ -88,6 +88,32 @@ const shoppingitemSchema = new Schema({
     
 }, { timestamps: true });
 
+// Add indexes for better query performance
+shoppingitemSchema.index({ main_category: 1 });
+shoppingitemSchema.index({ sub_category: 1 });
+shoppingitemSchema.index({ item_category: 1 });
+shoppingitemSchema.index({ brand: 1 });
+shoppingitemSchema.index({ discountprice: 1 });
+// Removed duplicate index on id (already covered by descending index below)
+
+// Compound indexes for common filter combinations
+shoppingitemSchema.index({ main_category: 1, sub_category: 1 });
+// Optimized index for sorting by id (descending) - critical for performance
+shoppingitemSchema.index({ id: -1 });
+// Compound indexes for filtered sorts
+shoppingitemSchema.index({ main_category: 1, id: -1 });
+shoppingitemSchema.index({ sub_category: 1, id: -1 });
+shoppingitemSchema.index({ brand: 1, id: -1 });
+shoppingitemSchema.index({ main_category: 1, discountprice: 1 });
+shoppingitemSchema.index({ brand: 1, discountprice: 1 });
+
+// Text index for search functionality
+shoppingitemSchema.index({ 
+  itemfullname: 'text', 
+  brand: 'text', 
+  description: 'text' 
+});
+
 export const ShoppingItem = mongoose.model('ShoppingItem', shoppingitemSchema);
     
 

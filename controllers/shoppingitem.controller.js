@@ -8,6 +8,60 @@ import path from 'path';
 import { User } from "../models/user.model.js";
 import { Category } from "../models/Category.model.js";
 
+// In-memory cache for shopping items - optimized and default all
+const cache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
+const MAX_CACHE_SIZE = 100;
+
+// Cache helper functions
+const generateCacheKey = (query) => {
+  return JSON.stringify({
+    page: query.page || 1,
+    limit: query.limit || 20,
+    main_category: query.main_category,
+    sub_category: query.sub_category,
+    item_category: query.item_category,
+    brand: query.brand,
+    min_price: query.min_price,
+    max_price: query.max_price,
+    search: query.search,
+    all: query.all,
+    stream: query.stream
+  });
+};
+
+const getCachedData = (key) => {
+  const cached = cache.get(key);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data;
+  }
+  cache.delete(key);
+  return null;
+};
+
+const setCachedData = (key, data) => {
+  // Clean old entries if cache is getting too large
+  if (cache.size >= MAX_CACHE_SIZE) {
+    const oldestKey = cache.keys().next().value;
+    cache.delete(oldestKey);
+  }
+  
+  cache.set(key, {
+    data,
+    timestamp: Date.now()
+  });
+};
+
+// Clean expired cache entries periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of cache.entries()) {
+    if (now - value.timestamp >= CACHE_TTL) {
+      cache.delete(key);
+    }
+  }
+}, CACHE_TTL);
+
 const updateExisting = true;
 const BATCH_SIZE = 100; // Process items in batches
 
@@ -245,9 +299,234 @@ export const addshoppingitems = asynchandler(async (req, res) => {
     });
 });
 
+// Performance monitoring helper
+const logQueryPerformance = (operation, queryTime, itemCount, filters) => {
+  const logData = {
+    operation,
+    queryTime: `${queryTime}ms`,
+    itemCount,
+    filters,
+    timestamp: new Date().toISOString(),
+    isSlowQuery: queryTime > 5000 // Flag queries taking more than 5 seconds
+  };
+  
+  if (logData.isSlowQuery) {
+    console.warn('🐌 SLOW QUERY DETECTED:', JSON.stringify(logData, null, 2));
+  } else {
+    console.log('⚡ Query Performance:', JSON.stringify(logData, null, 2));
+  }
+  
+  return logData;
+};
+
 export const getshoppingitems = asynchandler(async (req, res) => {
-  const items = await ShoppingItem.find();
-  return res.json(new apiresponse(200, items,"Shopping items fetched successfully"));
+  const requestStartTime = Date.now();
+  
+  try {
+    // Generate cache key
+    const cacheKey = generateCacheKey(req.query);
+    
+    // Check cache first
+    const cachedResult = getCachedData(cacheKey);
+    if (cachedResult) {
+      const totalTime = Date.now() - requestStartTime;
+      logQueryPerformance('cache_hit', totalTime, cachedResult.totalItems || cachedResult.items?.length, req.query);
+      return res.json(new apiresponse(200, cachedResult, "Shopping items fetched successfully (cached)"));
+    }
+    
+    // Build filter object
+    const filter = {};
+    if (req.query.main_category) filter.main_category = req.query.main_category.toLowerCase();
+    if (req.query.sub_category) filter.sub_category = req.query.sub_category.toLowerCase();
+    if (req.query.item_category) filter.item_category = req.query.item_category.toLowerCase();
+    if (req.query.brand) filter.brand = new RegExp(req.query.brand, 'i');
+    if (req.query.min_price) filter.discountprice = { $gte: parseFloat(req.query.min_price) };
+    if (req.query.max_price) {
+      filter.discountprice = filter.discountprice || {};
+      filter.discountprice.$lte = parseFloat(req.query.max_price);
+    }
+    
+    // Search functionality using text index
+    if (req.query.search) {
+      filter.$text = { $search: req.query.search };
+    }
+    
+    // Select only necessary fields to reduce data transfer
+    const selectedFields = 'id main_category sub_category item_category itemfullname brand discountprice orignalprice imgsrc quantity loyaltypoints';
+    
+    // Check if user wants paginated results (when page or limit is specified)
+    // Otherwise, return all items by default
+    const wantsPagination = req.query.page || req.query.limit;
+    
+    if (!wantsPagination && req.query.all !== 'false') {
+      // Return all items - use aggregation pipeline for better performance
+      const pipeline = [
+        { $match: filter },
+        {
+          $project: {
+            id: 1,
+            main_category: 1,
+            sub_category: 1,
+            item_category: 1,
+            itemfullname: 1,
+            brand: 1,
+            discountprice: 1,
+            orignalprice: 1,
+            imgsrc: 1,
+            quantity: 1,
+            loyaltypoints: 1,
+            _id: 0
+          }
+        },
+        { $sort: { id: -1 } }
+      ];
+      
+      // Add text search score if searching
+      if (req.query.search) {
+        pipeline.splice(1, 0, { $addFields: { score: { $meta: "textScore" } } });
+        pipeline[pipeline.length - 1] = { $sort: { score: { $meta: "textScore" }, id: -1 } };
+      }
+      
+      const startTime = Date.now();
+      const items = await ShoppingItem.aggregate(pipeline, {
+        allowDiskUse: true,
+        hint: { id: -1 }, // Use the optimized index
+        maxTimeMS: 30000 // 30 second timeout
+      });
+      const queryTime = Date.now() - startTime;
+      const totalTime = Date.now() - requestStartTime;
+      
+      const result = {
+        items,
+        totalItems: items.length,
+        queryTime: `${queryTime}ms`
+      };
+      
+      // Log performance
+      logQueryPerformance('aggregation_all_items', totalTime, items.length, req.query);
+      
+      // Cache the result
+      setCachedData(cacheKey, result);
+      
+      return res.json(new apiresponse(200, result, "All shopping items fetched successfully"));
+    }
+    
+    // Check if streaming is requested for very large datasets
+    const useStreaming = req.query.stream === 'true';
+    
+    if (useStreaming) {
+      // Set headers for streaming response
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Transfer-Encoding', 'chunked');
+      
+      const pipeline = [
+        { $match: filter },
+        {
+          $project: {
+            id: 1,
+            main_category: 1,
+            sub_category: 1,
+            item_category: 1,
+            itemfullname: 1,
+            brand: 1,
+            discountprice: 1,
+            orignalprice: 1,
+            imgsrc: 1,
+            quantity: 1,
+            loyaltypoints: 1,
+            _id: 0
+          }
+        },
+        { $sort: { id: -1 } }
+      ];
+      
+      if (req.query.search) {
+        pipeline.splice(1, 0, { $addFields: { score: { $meta: "textScore" } } });
+        pipeline[pipeline.length - 1] = { $sort: { score: { $meta: "textScore" }, id: -1 } };
+      }
+      
+      const startTime = Date.now();
+      let itemCount = 0;
+      
+      // Start streaming response
+      res.write('{"statusCode":200,"data":{"items":[');
+      
+      const cursor = ShoppingItem.aggregate(pipeline).allowDiskUse(true).cursor({ batchSize: 1000 });
+      
+      let isFirst = true;
+      for await (const item of cursor) {
+        if (!isFirst) res.write(',');
+        res.write(JSON.stringify(item));
+        isFirst = false;
+        itemCount++;
+        
+        // Flush every 100 items for better streaming
+        if (itemCount % 100 === 0) {
+          res.flush && res.flush();
+        }
+      }
+      
+      const queryTime = Date.now() - startTime;
+       const totalTime = Date.now() - requestStartTime;
+       res.write(`],"totalItems":${itemCount},"queryTime":"${queryTime}ms"},"message":"All shopping items streamed successfully"}`);
+       res.end();
+       
+       // Log performance
+       logQueryPerformance('streaming_query', totalTime, itemCount, req.query);
+       return;
+    }
+    
+    // Return paginated response when explicitly requested
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50; // Default limit when pagination is requested
+    const skip = (page - 1) * limit;
+    
+    // Execute queries in parallel for better performance
+    const queryStartTime = Date.now();
+    const [items, totalCount] = await Promise.all([
+      ShoppingItem.find(filter)
+        .select(selectedFields)
+        .lean() // Use lean for better performance
+        .skip(skip)
+        .limit(limit)
+        .sort({ id: -1 }) // Use optimized index
+        .hint({ id: -1 }) // Force use of optimized index
+        .maxTimeMS(5000), // 5 second timeout for fast response
+      ShoppingItem.countDocuments(filter).maxTimeMS(3000) // 3 second timeout for count
+    ]);
+    const queryTime = Date.now() - queryStartTime;
+    
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(totalCount / limit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+    
+    const result = {
+      items,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalItems: totalCount,
+        itemsPerPage: limit,
+        hasNextPage,
+        hasPrevPage
+      },
+      queryTime: `${queryTime}ms`
+    };
+    
+    // Log performance
+    const totalTime = Date.now() - requestStartTime;
+    logQueryPerformance('paginated_query', totalTime, items.length, { ...req.query, totalCount });
+    
+    // Cache the result
+    setCachedData(cacheKey, result);
+    
+    return res.json(new apiresponse(200, result, "Shopping items fetched successfully"));
+    
+  } catch (error) {
+    console.error('Error fetching shopping items:', error);
+    return res.json(new apierror(500, "Error fetching shopping items", error.message));
+  }
 });
 
 export const deleteshoppingitem=asynchandler(async(req,res)=>{
