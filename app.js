@@ -14,6 +14,7 @@ import salesrouter from './Routes/sales.routes.js'
 import reviewsrouter from './Routes/reviews.routes.js'
 import newsrouter from './Routes/news.routes.js'
 import dbrouter from './Routes/db.routes.js'
+import errorHandler from "./middelwares/errorMiddleware.js";
 const app=express()
 app.use(express.static('public'))
 
@@ -59,7 +60,6 @@ app.use('/api/v1/db', dbrouter)
 app.get('/',(req,res)=>{
     res.send('API is running')
 })
- 
-
+ app.use(errorHandler);
 
 export {app}
