@@ -13,6 +13,11 @@ import {
   getfavourites,
   addtoorderhistory,
   getorderhistory,
+  verifyOTP,
+  resendOTP,
+  forgotPassword,
+  resetPassword,
+  deleteUserAccount,
 } from "../controllers/user.controller.js";
 import { verifyjwt } from "../middelwares/auth.middleware.js";
 import { newupload } from "../middelwares/multer.middelware2.js";
@@ -20,6 +25,10 @@ import { newupload } from "../middelwares/multer.middelware2.js";
 const router = Router();
 
 router.route("/signup").post(newupload.single("profile"), registeruser);
+router.route("/verify-otp").post(verifyOTP);
+router.route("/resend-otp").post(resendOTP);
+router.route("/forgot-password").post(forgotPassword);
+router.route("/reset-password").post(resetPassword);
 router.route("/login").post(login);
 router.route("/logout").post(logout);
 router.route("/me").get(verifyjwt, (req, res) => {
@@ -30,6 +39,7 @@ router
   .post(verifyjwt, newupload.single("profile"), updateprofile);
 router.route("/getallusers").get(getallusers);
 router.route("/deleteuser").post(deleteuser);
+router.route("/delete-account").post(verifyjwt, deleteUserAccount);
 router.route("/addloyaltypoints").post(verifyjwt, addloyaltypoints);
 router.route("/redeemloyaltypoints").post(verifyjwt, redeemloyaltypoints);
 router.route("/addtofavourites").post(verifyjwt, addtofavourites);
