@@ -31,18 +31,13 @@ const registeruser = asynchandler(async (req, res) => {
     throw new apierror(400, "All fields are required");
   }
 
-  const existedEmail = await User.findOne({ email });
-  if (existedEmail) {
+  const existedUser = await User.findOne({ email });
+  if (existedUser && existedUser.verified) {
     if (profile) {
       const imagePath = path.join(process.cwd(), "public", profile.filename);
       if (fs.existsSync(imagePath)) fs.unlinkSync(imagePath);
     }
-    throw new apierror(
-      401,
-      existedEmail.verified
-        ? "Email already exists, please proceed to login"
-        : "Email already exists, please verify your email"
-    );
+    throw new apierror(401, "Email already exists, please proceed to login");
   }
 
   const otp = generateOTP();
@@ -50,19 +45,41 @@ const registeruser = asynchandler(async (req, res) => {
 
   let user;
   try {
-    user = await User.create({
-      profile: profile ? profile.filename : undefined,
-      email,
-      password,
-      fullname,
-      number: parseInt(number),
-      type,
-      bussinesname,
-      bussinesaddress,
-      verified: false,
-      otp,
-      otpExpires,
-    });
+    if (existedUser && !existedUser.verified) {
+      // Update existing unverified user
+      existedUser.password = password;
+      existedUser.fullname = fullname;
+      existedUser.number = parseInt(number);
+      existedUser.type = type || existedUser.type;
+      existedUser.bussinesname = bussinesname || existedUser.bussinesname;
+      existedUser.bussinesaddress = bussinesaddress || existedUser.bussinesaddress;
+      existedUser.otp = otp;
+      existedUser.otpExpires = otpExpires;
+      if (profile) {
+        if (existedUser.profile) {
+          const oldImagePath = path.join(process.cwd(), "public", existedUser.profile);
+          if (fs.existsSync(oldImagePath)) fs.unlinkSync(oldImagePath);
+        }
+        existedUser.profile = profile.filename;
+      }
+      await existedUser.save();
+      user = existedUser;
+    } else {
+      // Create new user
+      user = await User.create({
+        profile: profile ? profile.filename : undefined,
+        email,
+        password,
+        fullname,
+        number: parseInt(number),
+        type,
+        bussinesname,
+        bussinesaddress,
+        verified: false,
+        otp,
+        otpExpires,
+      });
+    }
 
     await sendemailverification(email, otp);
 
@@ -76,7 +93,7 @@ const registeruser = asynchandler(async (req, res) => {
       const imagePath = path.join(process.cwd(), "public", profile.filename);
       if (fs.existsSync(imagePath)) fs.unlinkSync(imagePath);
     }
-    throw new apierror(500, "Error creating user: " + error.message);
+    throw new apierror(500, "Error creating or updating user: " + error.message);
   }
 });
 
