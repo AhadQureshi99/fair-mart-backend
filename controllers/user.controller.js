@@ -5,10 +5,42 @@ import { asynchandler } from "../utils/asynchandler.js";
 import { apierror } from "../utils/apierror.js";
 import path from "path";
 import fs from "fs";
-import { sendemailverification, sendForgotPasswordEmail } from "../middelwares/Email.js";
+import nodemailer from "nodemailer";
 
 const generateOTP = () => {
   return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
+// Helper to send OTP emails using hardcoded credentials (VPS env not working)
+const sendOTPEmail = async (toEmail, otp, purpose = "verification") => {
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: "24.7FairMartWeb@gmail.com",
+      pass: "hnrtkosiwknrxfrf",
+    },
+  });
+
+  const subject =
+    purpose === "reset"
+      ? "24/7 FairMart - Password Reset OTP"
+      : "24/7 FairMart - Email Verification OTP";
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; line-height:1.6;">
+      <h3 style="color:#007bff;">${subject}</h3>
+      <p>Your One-Time Password (OTP) is:</p>
+      <p style="font-size:24px; font-weight:bold;">${otp}</p>
+      <p>This OTP is valid for 10 minutes. If you didn't request this, please ignore this email.</p>
+    </div>
+  `;
+
+  await transporter.sendMail({
+    from: '"24/7 FairMart" <24.7FairMartWeb@gmail.com>',
+    to: toEmail,
+    subject,
+    html,
+  });
 };
 
 const registeruser = asynchandler(async (req, res) => {
@@ -52,12 +84,17 @@ const registeruser = asynchandler(async (req, res) => {
       existedUser.number = parseInt(number);
       existedUser.type = type || existedUser.type;
       existedUser.bussinesname = bussinesname || existedUser.bussinesname;
-      existedUser.bussinesaddress = bussinesaddress || existedUser.bussinesaddress;
+      existedUser.bussinesaddress =
+        bussinesaddress || existedUser.bussinesaddress;
       existedUser.otp = otp;
       existedUser.otpExpires = otpExpires;
       if (profile) {
         if (existedUser.profile) {
-          const oldImagePath = path.join(process.cwd(), "public", existedUser.profile);
+          const oldImagePath = path.join(
+            process.cwd(),
+            "public",
+            existedUser.profile
+          );
           if (fs.existsSync(oldImagePath)) fs.unlinkSync(oldImagePath);
         }
         existedUser.profile = profile.filename;
@@ -81,9 +118,11 @@ const registeruser = asynchandler(async (req, res) => {
       });
     }
 
-    await sendemailverification(email, otp);
+    await sendOTPEmail(email, otp, "verification");
 
-    const created_user = await User.findById(user._id).select("-password -otp -otpExpires");
+    const created_user = await User.findById(user._id).select(
+      "-password -otp -otpExpires"
+    );
     return res.status(200).json({
       message: "User registered, please verify OTP sent to your email",
       user: created_user,
@@ -93,7 +132,10 @@ const registeruser = asynchandler(async (req, res) => {
       const imagePath = path.join(process.cwd(), "public", profile.filename);
       if (fs.existsSync(imagePath)) fs.unlinkSync(imagePath);
     }
-    throw new apierror(500, "Error creating or updating user: " + error.message);
+    throw new apierror(
+      500,
+      "Error creating or updating user: " + error.message
+    );
   }
 });
 
@@ -131,15 +173,12 @@ const verifyOTP = asynchandler(async (req, res) => {
   };
 
   const verifiedUser = await User.findById(user._id).select("-password");
-  return res
-    .status(200)
-    .cookie("accesstoken", accesstoken, options)
-    .json({
-      success: true,
-      message: "OTP verified successfully",
-      user: verifiedUser,
-      token: accesstoken,
-    });
+  return res.status(200).cookie("accesstoken", accesstoken, options).json({
+    success: true,
+    message: "OTP verified successfully",
+    user: verifiedUser,
+    token: accesstoken,
+  });
 });
 
 const resendOTP = asynchandler(async (req, res) => {
@@ -165,7 +204,7 @@ const resendOTP = asynchandler(async (req, res) => {
   user.otpExpires = otpExpires;
   await user.save();
 
-  await sendemailverification(email, otp);
+  await sendOTPEmail(email, otp, "verification");
 
   return res.status(200).json({
     success: true,
@@ -190,7 +229,7 @@ const forgotPassword = asynchandler(async (req, res) => {
   user.otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
   await user.save();
 
-  await sendForgotPasswordEmail(email, otp);
+  await sendOTPEmail(email, otp, "reset");
 
   return res.status(200).json({
     success: true,
@@ -203,7 +242,10 @@ const resetPassword = asynchandler(async (req, res) => {
   const { email, otp, newPassword } = req.body;
 
   if (!email || !otp || !newPassword) {
-    throw new apierror(400, `Email, OTP, and new password are required. Received: email=${email}, otp=${otp}, newPassword=${newPassword}`);
+    throw new apierror(
+      400,
+      `Email, OTP, and new password are required. Received: email=${email}, otp=${otp}, newPassword=${newPassword}`
+    );
   }
 
   const user = await User.findOne({
@@ -506,7 +548,9 @@ const login = asynchandler(async (req, res) => {
     maxAge: 30 * 24 * 60 * 60 * 1000,
   };
 
-  const loggedInUser = await User.findById(user._id).select("-password -otp -otpExpires");
+  const loggedInUser = await User.findById(user._id).select(
+    "-password -otp -otpExpires"
+  );
   return res
     .status(200)
     .cookie("accesstoken", accesstoken, options)
