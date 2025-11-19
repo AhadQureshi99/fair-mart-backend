@@ -35,45 +35,65 @@ const Forgot_Password_Email_Template = `
 `;
 
 export const sendemailverification = async (email, verificationcode) => {
-    try {
-        // Log the OTP and template for debugging
-        console.log("Sending verification email to:", email);
-        console.log("Verification OTP:", verificationcode);
-        console.log("Verification Template:", Verification_Email_Template.replace('{verificationCode}', verificationcode));
+  try {
+    // Log the OTP and template for debugging
+    console.log("Sending verification email to:", email);
+    console.log("Verification OTP:", verificationcode);
+    console.log(
+      "Verification Template:",
+      Verification_Email_Template.replace(
+        "{verificationCode}",
+        verificationcode
+      )
+    );
 
-        const response = await transporter.sendMail({
-            from: `"24/7 FairMart" <${process.env.USER_SENDER_EMAIL}>`,
-            to: email,
-            subject: "Verify Your 24/7 FairMart Account",
-            text: `Verify your email with OTP: ${verificationcode}`,
-            html: Verification_Email_Template.replace('{verificationCode}', verificationcode),
-        });
-        console.log("Verification email sent successfully:", response);
-        return response;
-    } catch (error) {
-        console.error("Error sending verification email:", error);
-        throw new Error(`Failed to send verification email: ${error.message}`);
-    }
+    const response = await transporter.sendMail({
+      from: '"24/7 FairMart" <24.7FairMartWeb@gmail.com>',
+      to: email,
+      subject: "Verify Your 24/7 FairMart Account",
+      text: `Verify your email with OTP: ${verificationcode}`,
+      html: Verification_Email_Template.replace(
+        "{verificationCode}",
+        verificationcode
+      ),
+    });
+    console.log("Verification email sent successfully:", response);
+    return response;
+  } catch (error) {
+    console.error("Error sending verification email:", error);
+    throw new Error(`Failed to send verification email: ${error.message}`);
+  }
 };
 
 export const sendForgotPasswordEmail = async (email, verificationcode) => {
-    try {
-        // Log the OTP and template for debugging
-        console.log("Sending password reset email to:", email);
-        console.log("Password Reset OTP:", verificationcode);
-        console.log("Password Reset Template:", Forgot_Password_Email_Template.replace('{verificationCode}', verificationcode));
+  try {
+    // Log the OTP and template for debugging
+    console.log("Sending password reset email to:", email);
+    console.log("Password Reset OTP:", verificationcode);
+    console.log(
+      "Password Reset Template:",
+      Forgot_Password_Email_Template.replace(
+        "{verificationCode}",
+        verificationcode
+      )
+    );
 
-        const response = await transporter.sendMail({
-            from: `"24/7 FairMart" <${process.env.USER_SENDER_EMAIL}>`,
-            to: email,
-            subject: "Reset Your 24/7 FairMart Password",
-            text: `Reset your password with OTP: ${verificationcode}`,
-            html: Forgot_Password_Email_Template.replace('{verificationCode}', verificationcode),
-        });
-        console.log("Password reset OTP email sent successfully:", response);
-        return response;
-    } catch (error) {
-        console.error("Error sending password reset OTP email:", error);
-        throw new Error(`Failed to send password reset OTP email: ${error.message}`);
-    }
+    const response = await transporter.sendMail({
+      from: '"24/7 FairMart" <24.7FairMartWeb@gmail.com>',
+      to: email,
+      subject: "Reset Your 24/7 FairMart Password",
+      text: `Reset your password with OTP: ${verificationcode}`,
+      html: Forgot_Password_Email_Template.replace(
+        "{verificationCode}",
+        verificationcode
+      ),
+    });
+    console.log("Password reset OTP email sent successfully:", response);
+    return response;
+  } catch (error) {
+    console.error("Error sending password reset OTP email:", error);
+    throw new Error(
+      `Failed to send password reset OTP email: ${error.message}`
+    );
+  }
 };
