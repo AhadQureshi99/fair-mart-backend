@@ -1,30 +1,32 @@
-import jwt from 'jsonwebtoken'
-import { User } from '../models/user.model.js'
-import { apierror } from '../utils/apierror.js'
-import { asynchandler } from '../utils/asynchandler.js'
-
-
+import jwt from "jsonwebtoken";
+import { User } from "../models/user.model.js";
+import { apierror } from "../utils/apierror.js";
+import { asynchandler } from "../utils/asynchandler.js";
 
 export const verifyjwt = asynchandler(async (req, res, next) => {
-    try {
-        const token = req.cookies?.accesstoken || req.header('Authorization')?.replace('Bearer ', '');
-         
-        if (!token) {
-            throw new apierror(401, "No token provided");
-        }
+  try {
+    const token =
+      req.cookies?.accesstoken ||
+      req.header("Authorization")?.replace("Bearer ", "");
 
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
- 
-
-        const user = await User.findById(decoded?.id).select('-password');
-        if (!user) {
-            throw new apierror(404, "User not found");
-        }
-
-        req.user = user;
-        next();
-    } catch (error) {
-        console.error("JWT Error:", error.message);
-        throw new apierror(401, error.message || "Please authenticate");
+    if (!token) {
+      throw new apierror(401, "No token provided");
     }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    const user = await User.findById(decoded?.id).select("-password");
+    if (!user) {
+      throw new apierror(404, "User not found");
+    }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    // Log full error for debugging (stack included)
+    console.error("JWT Error:", error);
+    // If it's a token verification error, return 401, otherwise return generic auth error
+    const msg = error?.message || "Please authenticate";
+    throw new apierror(401, msg);
+  }
 });

@@ -151,11 +151,23 @@ const verifyOTP = asynchandler(async (req, res) => {
     throw new apierror(404, "User not found");
   }
 
+  // Debug logging to help troubleshoot OTP mismatches
+  console.log("VerifyOTP request:", {
+    email,
+    providedOtp: otp,
+    storedOtp: user.otp,
+    otpExpires: user.otpExpires,
+  });
+
   if (user.verified) {
     throw new apierror(400, "User already verified");
   }
 
-  if (user.otp !== otp || user.otpExpires < Date.now()) {
+  // Normalize and compare as strings to avoid numeric/string mismatch
+  const storedOtp = String(user.otp || "").trim();
+  const providedOtp = String(otp || "").trim();
+  const expiresAt = user.otpExpires ? new Date(user.otpExpires).getTime() : 0;
+  if (!storedOtp || storedOtp !== providedOtp || expiresAt < Date.now()) {
     throw new apierror(400, "Invalid or expired OTP");
   }
 
@@ -307,10 +319,32 @@ const delunverifiedusers = asynchandler(async (req, res) => {
 const generateaccesstoken = async (userid) => {
   try {
     const user = await User.findById(userid);
-    const accesstoken = await user.generateaccesstoken();
-    await user.save();
+    if (!process.env.JWT_SECRET) {
+      console.error("JWT secret not configured in environment");
+      throw new apierror(500, "Server configuration error: JWT secret not set");
+    }
+    if (!user) {
+      throw new apierror(404, "User not found when generating token");
+    }
+    let accesstoken;
+    try {
+      accesstoken = user.generateaccesstoken();
+    } catch (err) {
+      console.error("Error signing JWT for user", userid, err);
+      throw new apierror(500, "Error generating token");
+    }
+    // Save user (if any changes in token generation logic require it)
+    try {
+      await user.save();
+    } catch (err) {
+      console.error("Error saving user after token generation", err);
+      // Non-fatal for token issuance, but log and continue
+    }
     return { accesstoken };
   } catch (error) {
+    // Re-throw apierror or wrap unexpected errors
+    if (error instanceof apierror) throw error;
+    console.error("Unexpected error in generateaccesstoken:", error);
     throw new apierror(500, "Error generating token");
   }
 };
@@ -413,14 +447,25 @@ const deleteuser = asynchandler(async (req, res) => {
 });
 
 export const logout = asynchandler(async (req, res) => {
+  // Use environment-aware cookie options so clearCookie works in dev (HTTP)
+  const isProduction = process.env.NODE_ENV === "production";
   const options = {
     httpOnly: true,
-    secure: true,
-    sameSite: "none",
+    secure: isProduction, // secure cookie only in production (HTTPS)
+    sameSite: isProduction ? "none" : "lax",
     path: "/",
   };
+
+  // Clear the cookie on the client
   res.clearCookie("accesstoken", options);
-  res.json({ message: "Logged out successfully" });
+
+  // Also send an explicit expired cookie for extra compatibility in some browsers
+  res.cookie("accesstoken", "", {
+    ...options,
+    maxAge: 0,
+  });
+
+  return res.json({ message: "Logged out successfully" });
 });
 
 export const addloyaltypoints = asynchandler(async (req, res) => {
