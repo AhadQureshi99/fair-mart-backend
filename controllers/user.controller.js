@@ -500,9 +500,21 @@ export const addtoorderhistory = asynchandler(async (req, res) => {
   if (!user.verified) {
     throw new apierror(403, "Please verify your email first");
   }
-  user.orderhistory.push(orderid);
-  await user.save();
-  res.json({ message: "Order added to order history", user });
+  // Prevent duplicates in order history
+  if (!user.orderhistory.some((id) => id.toString() === orderid.toString())) {
+    user.orderhistory.push(orderid);
+    await user.save();
+  }
+
+  // Return updated, populated order history
+  const populatedHistory = await Order.find({ _id: { $in: user.orderhistory } })
+    .populate({ path: "products.product", model: "ShoppingItem" })
+    .sort({ createdAt: -1 });
+
+  res.json({
+    message: "Order added to order history",
+    orderhistory: populatedHistory,
+  });
 });
 
 export const getorderhistory = asynchandler(async (req, res) => {
@@ -510,9 +522,10 @@ export const getorderhistory = asynchandler(async (req, res) => {
   if (!user.verified) {
     throw new apierror(403, "Please verify your email first");
   }
-  const orderhistory = await Order.find({
-    _id: { $in: user.orderhistory },
-  }).populate("products.product");
+  const orderhistory = await Order.find({ _id: { $in: user.orderhistory } })
+    .populate({ path: "products.product", model: "ShoppingItem" })
+    .sort({ createdAt: -1 });
+
   res.json({ orderhistory });
 });
 
