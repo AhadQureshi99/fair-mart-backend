@@ -27,10 +27,12 @@ export const createOrder = asynchandler(async (req, res) => {
 });
 
 export const getOrders = asynchandler(async (req, res) => {
-  const orders = await Order.find({ user: req.user._id }).populate({
-    path: "products.product",
-    model: "ShoppingItem",
-  });
+  const orders = await Order.find({ user: req.user._id })
+    .populate("user")
+    .populate({
+      path: "products.product",
+      model: "ShoppingItem",
+    });
   res.status(200).json(new apiresponse(true, orders));
 });
 export const getOrder = asynchandler(async (req, res) => {
